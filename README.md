@@ -101,8 +101,10 @@ public static string SettingCachePath = @"D:\ModelCache";  // your SSD drive
 For best results, disable memory-mapped file loading in SwarmUI so ComfyUI actually reads from disk (and therefore from your RAM disk) rather than memory-mapping the original file:
 
 1. Open SwarmUI → **Server** tab → **Server Configuration**
-2. Find **Disable mmap** (or similar setting under ComfyUI backend options)
-3. Enable it
+2. Enter "--disable-mmap" in ExtraArgs
+
+<img width="1508" height="764" alt="image" src="https://github.com/user-attachments/assets/fe3c9ce6-4263-49c3-b095-2497a660bcf0" />
+
 
 Without this, ComfyUI may bypass the RAM disk entirely on some model types.
 
