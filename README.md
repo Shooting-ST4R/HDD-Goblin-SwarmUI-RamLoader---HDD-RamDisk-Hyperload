@@ -1,4 +1,4 @@
-# HDD-Goblin 👺 — Your Friendly Fast Model-Goblin
+# HDD-Goblin 🧌  — Your Friendly Fast Model-Goblin
 ## SwarmUI Extension · HDD → RAM-Disk Hyperloader
 
 > ⚠️ **Disclaimer:** This extension was vibe-coded. I don't claim ownership of the underlying code. Usage is entirely at your own risk. Functionality has been tested on **Windows 10 only**. No guarantees for other platforms.
@@ -134,10 +134,10 @@ SwarmUI caches model metadata in a `bin` folder. If models appear missing or sta
 
 ## Installation
 
-```bash
-cd /path/to/SwarmUI/src/Extensions/
-git clone https://github.com/YOUR_USERNAME/HDD-Goblin
-```
+
+1.) Go to /SwarmUI/src/Extensions/
+2.) Extract the newest version HDD-Goblin-Vx.zip there.
+
 Then relaunch SwarmUI. It will compile and load the extension automatically.
 
 ---
