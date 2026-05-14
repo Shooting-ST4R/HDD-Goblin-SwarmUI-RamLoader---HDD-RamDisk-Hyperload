@@ -3,7 +3,7 @@
 
 > ⚠️ **Disclaimer:** This extension was vibe-coded. I don't claim ownership of the underlying code. Usage is entirely at your own risk. Functionality has been tested on **Windows 10 only**. No guarantees for other platforms.
 
-Known Bugs: Cancelling model loading with [X] does not work anymore. You need to wait for the model to load and then continue with your next action. (Cancelling image generation works)
+Known Bugs: Cancelling model loading with [X] does not work. You need to wait for the model to finish loading before continuing. (Cancelling image generation works fine.)
 
 ---
 
@@ -44,8 +44,8 @@ Same machine, same model, same settings. The only difference is this extension.
 ```
   Loading model from HDD: [████████████████████] 100% | avg 184 MB/s  (6776/6776 MiB)
   Loading model from RAM-disk ... Done  (20s elapsed)
-  Deleting RAM-disk copy ...
-  [HDDModelLoader] Freed 6776 MiB from RAM disk.
+  Cleaning up ...
+  RAM-disk copy deleted.
 22:43:47  Generated image in 57.45 sec (prep) and 16.02 sec (gen)
 ```
 
@@ -57,6 +57,12 @@ Same machine, same model, same settings. The only difference is this extension.
 ```
 
 > The second model loaded in just **4 seconds** from RAM disk. Load times improve as your RAM warms up within a session.
+
+Example CMD:
+
+<img width="1175" height="435" alt="Screenshot_6" src="https://github.com/user-attachments/assets/564c75d0-4ad1-47df-afe3-d9e78ed78ae3" />
+
+
 
 ---
 
@@ -101,10 +107,9 @@ public static string SettingCachePath = @"D:\ModelCache";  // your SSD drive
 For best results, disable memory-mapped file loading in SwarmUI so ComfyUI actually reads from disk (and therefore from your RAM disk) rather than memory-mapping the original file:
 
 1. Open SwarmUI → **Server** tab → **Server Configuration**
-2. Enter "--disable-mmap" in ExtraArgs
+2. Enter `--disable-mmap` in ExtraArgs
 
 <img width="1508" height="764" alt="image" src="https://github.com/user-attachments/assets/fe3c9ce6-4263-49c3-b095-2497a660bcf0" />
-
 
 Without this, ComfyUI may bypass the RAM disk entirely on some model types.
 
@@ -134,9 +139,8 @@ SwarmUI caches model metadata in a `bin` folder. If models appear missing or sta
 
 ## Installation
 
-
-1.) Go to /SwarmUI/src/Extensions/
-2.) Extract the newest version HDD-Goblin-Vx.zip there.
+1. Go to `/SwarmUI/src/Extensions/`
+2. Extract the newest `HDD-Goblin-Vx.zip` there
 
 Then relaunch SwarmUI. It will compile and load the extension automatically.
 
@@ -159,11 +163,11 @@ A 7 GB model loaded with random I/O at ~1 MB/s effective throughput = **~2 hours
 
 1. **Sequential copy to RAM** — Before the workflow is submitted to ComfyUI, the extension opens the model file with `FileOptions.SequentialScan` and a 64 MiB buffer. This tells the OS to read ahead aggressively in one direction. The HDD runs at its peak throughput (~150–200 MB/s). A 6.6 GB model copies in ~35 seconds.
 
-2. **ComfyUI loads from RAM** — The extension registers the RAM disk as a model search path in ComfyUI's `extra_model_paths.yaml`. ComfyUI finds the model there instead of on the HDD and does all its random I/O against RAM, which handles it at memory speed (~10,000 MB/s effective).
+2. **ComfyUI loads from RAM** — The extension registers the RAM disk as a model search path in ComfyUI's `extra_model_paths.yaml`, prepended so it is found before the HDD path. ComfyUI finds the model there and does all its random I/O against RAM, which handles it at memory speed (~10,000 MB/s effective).
 
-3. **RAM disk copy deleted after load** — Once ComfyUI confirms the model is loaded into VRAM, the RAM disk copy is deleted to free up RAM for the next model.
+3. **RAM disk copy deleted after load** — Once ComfyUI confirms the model has been loaded into VRAM, the RAM disk copy is deleted to free up RAM for the next model.
 
-4. **Subsequent generations skip the copy** — If you generate again with the same model in the same session (model is still in VRAM), no copy happens at all.
+4. **Every generation is a clean slate** — The watcher waits for a confirmed `false → true` transition on the load signal rather than acting on any pre-existing state. This ensures the second, third, and subsequent model loads behave identically to the very first one.
 
 ### Sequence diagram
 
@@ -174,13 +178,13 @@ SwarmUI         HDDModelLoader          HDD            RAM disk        ComfyUI
    │                   │── seq read ────▶│                │                │
    │                   │◀── 184 MB/s ───│                │                │
    │                   │── write ───────────────────────▶│                │
-   │                   │── start watcher (background) ──────────────────▶│
+   │                   │── start watcher (background)    │                │
    │── submit workflow ─────────────────────────────────────────────────▶│
    │                   │                 │                │                │
    │                   │                 │                │◀── rand read ──│
    │                   │ (spinner)       │                │   (RAM speed)  │
    │                   │                 │                │                │
-   │                   │◀── AnyBackendsHaveLoaded = true ─────────────────│
+   │                   │◀── load signal: false → true ────────────────────│
    │                   │── delete RAM copy ─────────────▶│                │
    │◀── image done ────────────────────────────────────────────────────── │
 ```
@@ -193,10 +197,10 @@ All settings are at the top of `HDDModelLoader.cs`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `SettingCachePath` | `""` (auto) | Override cache directory. Blank = auto-detect (`/dev/shm` on Linux, Temp on Windows). Windows RAM disk users: set to e.g. `R:\ModelCache`. |
+| `SettingCachePath` | `""` (auto) | Override cache directory. Blank = auto-detect (`R:\ModelCache` on Windows if R: exists, `/dev/shm` on Linux). |
 | `SettingCleanupOnShutdown` | `true` | Delete cache files when SwarmUI exits. Set to `false` to keep the cache warm across SwarmUI restarts (as long as the machine stays on). |
 | `SettingMaxCacheMiB` | `0` | RAM cap in MiB. `0` = no limit. When exceeded, the oldest cached model is evicted. |
-| `SettingLoadTimeoutSecs` | `300` | Seconds to wait for ComfyUI to load a model before giving up and cleaning up. Reduce if you want faster cleanup after cancelling a generation. |
+| `SettingLoadTimeoutSecs` | `300` | Seconds to wait for ComfyUI to load a model before giving up and cleaning up. Reduce if you want faster cleanup after a cancelled generation. |
 
 ---
 
